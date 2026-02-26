@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, Edit3, Plus } from 'lucide-react';
+import { Trash2, Edit3, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import Background from './Background';
-import { DndContext, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { SortableContext, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -63,7 +64,7 @@ const TaskCard = ({ task, openTaskModal, deleteTaskById }) => {
                             e.stopPropagation();
                             openTaskModal(task.id);
                         }}
-                        className="text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-blue-50 rounded-lg"
+                        className="text-slate-400 hover:text-blue-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all p-1.5 hover:bg-blue-50 rounded-lg"
                         title="Редактировать"
                     >
                         <Edit3 size={14} />
@@ -73,7 +74,7 @@ const TaskCard = ({ task, openTaskModal, deleteTaskById }) => {
                             e.stopPropagation();
                             deleteTaskById(task.id);
                         }}
-                        className="text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded-lg"
+                        className="text-slate-400 hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded-lg"
                         title="Удалить"
                     >
                         <Trash2 size={14} />
@@ -90,32 +91,66 @@ const TaskCard = ({ task, openTaskModal, deleteTaskById }) => {
     );
 };
 
-const Column = ({ id, title, tasks, openTaskModal, deleteTaskById }) => {
+const Column = ({ id, title, tasks, openTaskModal, deleteTaskById, isCollapsed, toggleCollapse }) => {
     const { setNodeRef } = useDroppable({ id });
+
     return (
-        <div ref={setNodeRef} className="flex-1 bg-slate-400/5 backdrop-blur-xl rounded-3xl p-5 min-w-[340px] border border-white/20 shadow-xl flex flex-col">
-            <h2 className="font-bold text-slate-800 mb-5 flex items-center justify-between px-1 text-lg">
-                <span className="flex items-center gap-2">
-                    {title}
-                    <span className="task-count bg-slate-200/50 backdrop-blur-sm text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ring-1 ring-slate-900/5">{tasks.length}</span>
-                </span>
-                <button
-                    onClick={() => openTaskModal()}
-                    className="p-1.5 hover:bg-white/50 rounded-full transition-colors text-slate-500 hover:text-slate-900"
-                >
-                    <Plus size={18} />
-                </button>
-            </h2>
-            <SortableContext id={id} items={tasks.map(t => t.id)}>
-                <div className="column-drop-zone flex flex-col gap-3 min-h-[200px]">
-                    <AnimatePresence mode="popLayout">
-                        {tasks.map(task => (
-                            <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} deleteTaskById={deleteTaskById} />
-                        ))}
-                    </AnimatePresence>
+        <motion.div
+            ref={setNodeRef}
+            layout
+            className={`flex-1 bg-slate-400/5 backdrop-blur-xl rounded-3xl p-5 border border-white/20 shadow-xl flex flex-col transition-all duration-300 ${isCollapsed ? 'min-w-[80px] w-[80px] flex-none' : 'min-w-[340px]'}`}
+        >
+            <div className={`flex items-center justify-between mb-5 px-1 ${isCollapsed ? 'flex-col gap-6' : ''}`}>
+                <div className={`flex items-center gap-2 ${isCollapsed ? 'rotate-90 origin-center translate-y-12 whitespace-nowrap' : ''}`}>
+                    <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                        {title}
+                        {!isCollapsed && (
+                            <span className="task-count bg-slate-200/50 backdrop-blur-sm text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ring-1 ring-slate-900/5">{tasks.length}</span>
+                        )}
+                    </h2>
                 </div>
-            </SortableContext>
-        </div>
+
+                <div className={`flex items-center gap-1 ${isCollapsed ? 'flex-col' : ''}`}>
+                    {!isCollapsed && (
+                        <button
+                            onClick={() => openTaskModal(null, id)}
+                            className="p-1.5 hover:bg-white/50 rounded-full transition-colors text-slate-500 hover:text-slate-900"
+                            title="Добавить в эту колонку"
+                        >
+                            <Plus size={18} />
+                        </button>
+                    )}
+                    <button
+                        onClick={() => toggleCollapse(id)}
+                        className="p-1.5 hover:bg-white/50 rounded-full transition-colors text-slate-500 hover:text-slate-900"
+                        title={isCollapsed ? "Развернуть" : "Свернуть"}
+                    >
+                        {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+                {!isCollapsed && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <SortableContext id={id} items={tasks.map(t => t.id)}>
+                            <div className="column-drop-zone flex flex-col gap-3 min-h-[200px] pb-4">
+                                <AnimatePresence mode="popLayout">
+                                    {tasks.map(task => (
+                                        <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} deleteTaskById={deleteTaskById} />
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                        </SortableContext>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
     );
 };
 
@@ -124,7 +159,8 @@ const KanbanBoard = () => {
         const savedTasks = localStorage.getItem('tasks');
         return savedTasks ? JSON.parse(savedTasks) : initialTasks;
     });
-    const [modal, setModal] = useState({ isOpen: false, taskId: null });
+    const [modal, setModal] = useState({ isOpen: false, taskId: null, targetStatus: null });
+    const [collapsedColumns, setCollapsedColumns] = useState([]);
     
     useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)); }, [tasks]);
 
@@ -133,6 +169,15 @@ const KanbanBoard = () => {
             activationConstraint: {
                 distance: 8,
             },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 250,
+                tolerance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
@@ -169,21 +214,45 @@ const KanbanBoard = () => {
         });
     }
     
-    const openTaskModal = (taskId = null) => setModal({ isOpen: true, taskId });
-    const closeModal = () => setModal({ isOpen: false, taskId: null });
+    const openTaskModal = (taskId = null, targetStatus = null) => setModal({ isOpen: true, taskId, targetStatus });
+    const closeModal = () => setModal({ isOpen: false, taskId: null, targetStatus: null });
+
+    const toggleCollapse = (columnId) => {
+        setCollapsedColumns(prev =>
+            prev.includes(columnId)
+                ? prev.filter(id => id !== columnId)
+                : [...prev, columnId]
+        );
+    };
 
     const saveTask = (e) => {
         e.preventDefault();
-        const { title, desc, tag, assigneeVolkov, assigneeIlimbakiev } = e.target.elements;
+        const { title, desc, tag, status, assigneeVolkov, assigneeIlimbakiev } = e.target.elements;
         const [tagText, color] = tag.value.split('|');
+        const selectedStatus = status.value;
+
         let assignees = [];
         if (assigneeVolkov.checked) assignees.push('Волков');
         if (assigneeIlimbakiev.checked) assignees.push('Илимбакиев');
+
         if (!title.value.trim()) return alert('Введите название задачи!');
+
         if (modal.taskId) {
-            setTasks(tasks.map(task => task.id === modal.taskId ? { ...task, title: title.value, desc: desc.value, tag: tagText, color, assignees } : task));
+            setTasks(tasks.map(task =>
+                task.id === modal.taskId
+                    ? { ...task, title: title.value, desc: desc.value, tag: tagText, color, status: selectedStatus, assignees }
+                    : task
+            ));
         } else {
-            setTasks([...tasks, { id: 'task_' + Date.now(), status: 'todo', title: title.value, desc: desc.value, tag: tagText, color, assignees }]);
+            setTasks([...tasks, {
+                id: 'task_' + Date.now(),
+                status: selectedStatus || modal.targetStatus || 'todo',
+                title: title.value,
+                desc: desc.value,
+                tag: tagText,
+                color,
+                assignees
+            }]);
         }
         closeModal();
     };
@@ -246,6 +315,8 @@ const KanbanBoard = () => {
                                 tasks={tasks.filter(t => t.status === column.id)}
                                 openTaskModal={openTaskModal}
                                 deleteTaskById={deleteTaskById}
+                                isCollapsed={collapsedColumns.includes(column.id)}
+                                toggleCollapse={toggleCollapse}
                             />
                         ))}
                     </div>
@@ -291,13 +362,24 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
                             <label className="block text-sm font-medium text-slate-700 mb-1">Описание</label>
                             <textarea name="desc" rows="3" defaultValue={task?.desc} placeholder="Краткое описание задачи..." className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"></textarea>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Категория (Тег)</label>
-                            <select name="tag" defaultValue={isEdit ? `${task.tag}|${task.color}`: ""} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                                <option value="Инфраструктура|blue">Инфраструктура (Синий)</option> <option value="API|purple">API / Бэкенд (Фиолетовый)</option> <option value="Логика|green">Логика / JS (Зеленый)</option>
-                                <option value="Интерфейс|blue">Интерфейс / UI (Синий)</option> <option value="Дизайн|orange">Дизайн / Контент (Оранжевый)</option> <option value="Документация|yellow">Документация (Желтый)</option>
-                                <option value="QA|teal">Тестирование (Бирюзовый)</option> <option value="Менеджмент|slate">Менеджмент (Серый)</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Категория</label>
+                                <select name="tag" defaultValue={isEdit ? `${task.tag}|${task.color}`: ""} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                    <option value="Инфраструктура|blue">Инфраструктура</option> <option value="API|purple">API / Бэкенд</option> <option value="Логика|green">Логика / JS</option>
+                                    <option value="Интерфейс|blue">Интерфейс / UI</option> <option value="Дизайн|orange">Дизайн / Контент</option> <option value="Документация|yellow">Документация</option>
+                                    <option value="QA|teal">Тестирование</option> <option value="Менеджмент|slate">Менеджмент</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Колонка</label>
+                                <select name="status" defaultValue={task?.status || modal.targetStatus || "todo"} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                    <option value="todo">К выполнению</option>
+                                    <option value="in-progress">В работе</option>
+                                    <option value="testing">Тестирование</option>
+                                    <option value="done">Готово</option>
+                                </select>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">Исполнители</label>
