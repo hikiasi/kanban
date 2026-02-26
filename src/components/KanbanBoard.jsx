@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Trash2, Edit3, Plus } from 'lucide-react';
+import Background from './Background';
 import { DndContext, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -24,7 +27,7 @@ const initialTasks = [
     { id: 'task18', status: 'done', title: 'Копирайтинг (Тексты)', desc: 'Написать короткие и понятные фразы-рекомендации по одежде для карточек UI.', tag: 'Дизайн', color: 'orange', assignees: ['Илимбакиев'] },
 ];
 
-const TaskCard = ({ task, openTaskModal }) => {
+const TaskCard = ({ task, openTaskModal, deleteTaskById }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -40,13 +43,42 @@ const TaskCard = ({ task, openTaskModal }) => {
     const theme = colorClasses[task.color] || colorClasses['slate'];
 
     return (
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners}
-             className="task-card bg-white p-4 rounded-lg shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing relative group">
+        <motion.div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            whileHover={{ y: -5, scale: 1.02, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)' }}
+            className="task-card bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-white/50 cursor-grab active:cursor-grabbing relative group"
+        >
             <div className="flex justify-between items-start mb-2">
                 <span className={`task-tag text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${theme}`}>{task.tag}</span>
-                <button onClick={() => openTaskModal(task.id)} className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </button>
+                <div className="flex gap-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openTaskModal(task.id);
+                        }}
+                        className="text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-blue-50 rounded-lg"
+                        title="Редактировать"
+                    >
+                        <Edit3 size={14} />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            deleteTaskById(task.id);
+                        }}
+                        className="text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded-lg"
+                        title="Удалить"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                </div>
             </div>
             <h3 className="task-title font-medium text-sm mb-1">{task.title}</h3>
             <p className="task-desc text-xs text-slate-500 mb-3">{task.desc}</p>
@@ -54,21 +86,33 @@ const TaskCard = ({ task, openTaskModal }) => {
                 {task.assignees.map(name => <span key={name} className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{name}</span>)}
                 {task.assignees.length === 0 && <span className="text-slate-400">Нет исполнителя</span>}
             </div>
-        </div>
+        </motion.div>
     );
 };
 
-const Column = ({ id, title, tasks, openTaskModal }) => {
+const Column = ({ id, title, tasks, openTaskModal, deleteTaskById }) => {
     const { setNodeRef } = useDroppable({ id });
     return (
-        <div ref={setNodeRef} className="flex-1 bg-slate-100/70 rounded-xl p-4 min-w-[300px] border border-slate-200">
-            <h2 className="font-semibold text-slate-700 mb-4 flex items-center justify-between">
-                {title}
-                <span className="task-count bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-xs">{tasks.length}</span>
+        <div ref={setNodeRef} className="flex-1 bg-slate-400/5 backdrop-blur-xl rounded-3xl p-5 min-w-[340px] border border-white/20 shadow-xl flex flex-col">
+            <h2 className="font-bold text-slate-800 mb-5 flex items-center justify-between px-1 text-lg">
+                <span className="flex items-center gap-2">
+                    {title}
+                    <span className="task-count bg-slate-200/50 backdrop-blur-sm text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ring-1 ring-slate-900/5">{tasks.length}</span>
+                </span>
+                <button
+                    onClick={() => openTaskModal()}
+                    className="p-1.5 hover:bg-white/50 rounded-full transition-colors text-slate-500 hover:text-slate-900"
+                >
+                    <Plus size={18} />
+                </button>
             </h2>
             <SortableContext id={id} items={tasks.map(t => t.id)}>
-                <div className="column-drop-zone flex flex-col gap-3 min-h-[150px]">
-                    {tasks.map(task => <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} />)}
+                <div className="column-drop-zone flex flex-col gap-3 min-h-[200px]">
+                    <AnimatePresence mode="popLayout">
+                        {tasks.map(task => (
+                            <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} deleteTaskById={deleteTaskById} />
+                        ))}
+                    </AnimatePresence>
                 </div>
             </SortableContext>
         </div>
@@ -84,7 +128,13 @@ const KanbanBoard = () => {
     
     useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)); }, [tasks]);
 
-    const sensors = useSensors(useSensor(PointerSensor));
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
 
     function handleDragEnd(event) {
         const { active, over } = event;
@@ -144,32 +194,66 @@ const KanbanBoard = () => {
             closeModal();
         }
     };
+
+    const deleteTaskById = (id) => {
+        if (confirm('Точно удалить задачу?')) {
+            setTasks(tasks.filter(task => task.id !== id));
+        }
+    };
     
     const columns = [ { id: 'todo', title: 'К выполнению' }, { id: 'in-progress', title: 'В работе' }, { id: 'testing', title: 'Тестирование (QA)' }, { id: 'done', title: 'Готово' }];
     const getTaskById = (id) => tasks.find(task => task.id === id);
 
     return (
-        <div className="bg-slate-50 text-slate-900 font-sans p-4 md:p-8 min-h-screen">
-            <div className="max-w-[1400px] mx-auto">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="text-slate-900 font-sans p-4 md:p-8 min-h-screen relative overflow-hidden">
+            <Background />
+            <div className="max-w-[1400px] mx-auto relative z-10">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2 tracking-tight">Канбан-доска проекта</h1>
-                        <p className="text-slate-500 text-sm md:text-base">Разработка веб-приложения «Что надеть?» (Next.js, Tailwind, OpenWeatherMap)</p>
+                        <motion.h1
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="text-4xl font-black mb-2 tracking-tight text-slate-900"
+                        >
+                            Проект «Что надеть?»
+                        </motion.h1>
+                        <motion.p
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.1 }}
+                            className="text-slate-500 text-sm md:text-base font-medium"
+                        >
+                            Управление задачами • Next.js + Tailwind CSS
+                        </motion.p>
                     </div>
-                    <button onClick={() => openTaskModal()} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openTaskModal()}
+                        className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-slate-900/20 flex items-center gap-2"
+                    >
+                        <Plus size={18} />
                         Добавить задачу
-                    </button>
+                    </motion.button>
                 </div>
                 <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                     <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-8 items-start">
                         {columns.map(column => (
-                            <Column key={column.id} id={column.id} title={column.title} tasks={tasks.filter(t => t.status === column.id)} openTaskModal={openTaskModal} />
+                            <Column
+                                key={column.id}
+                                id={column.id}
+                                title={column.title}
+                                tasks={tasks.filter(t => t.status === column.id)}
+                                openTaskModal={openTaskModal}
+                                deleteTaskById={deleteTaskById}
+                            />
                         ))}
                     </div>
                 </DndContext>
             </div>
-            {modal.isOpen && <TaskModal modal={modal} closeModal={closeModal} saveTask={saveTask} deleteTask={deleteTask} getTaskById={getTaskById} />}
+            <AnimatePresence>
+                {modal.isOpen && <TaskModal modal={modal} closeModal={closeModal} saveTask={saveTask} deleteTask={deleteTask} getTaskById={getTaskById} />}
+            </AnimatePresence>
         </div>
     );
 };
@@ -178,8 +262,19 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
     const task = modal.taskId ? getTaskById(modal.taskId) : null;
     const isEdit = !!task;
     return (
-        <div id="taskModal" className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-200 m-4 transform scale-100 transition-transform" id="modalContent">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            id="taskModal"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-50 p-4"
+        >
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl w-full max-w-md p-8 border border-white/20"
+            >
                 <form onSubmit={saveTask}>
                     <div className="flex justify-between items-center mb-5">
                         <h3 className="text-lg font-bold" id="modalTitle">{isEdit ? 'Редактировать задачу' : 'Новая задача'}</h3>
@@ -224,8 +319,8 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
                         </div>
                     </div>
                 </form>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 
