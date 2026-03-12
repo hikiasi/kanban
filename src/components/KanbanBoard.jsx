@@ -104,8 +104,11 @@ const initialTasks = [
     { id: 't75', status: 'done', title: 'Вычитка ТЗ преподавателем', desc: 'Получить апрув (согласование) от научного руководителя по текущему списку фич.', tag: 'Менеджмент', color: 'slate', assignees: ['Волков', 'Илимбакиев'] }
 ];
 
-const TaskCard = ({ task, openTaskModal }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+const TaskCard = ({ task, openTaskModal, isAuthorized }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: task.id,
+        disabled: !isAuthorized
+    });
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
@@ -124,9 +127,11 @@ const TaskCard = ({ task, openTaskModal }) => {
              className="task-card bg-white p-4 rounded-lg shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing relative group">
             <div className="flex justify-between items-start mb-2">
                 <span className={`task-tag text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${theme}`}>{task.tag}</span>
-                <button onClick={() => openTaskModal(task.id)} className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </button>
+                {isAuthorized && (
+                    <button onClick={() => openTaskModal(task.id)} className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    </button>
+                )}
             </div>
             <h3 className="task-title font-medium text-sm mb-1">{task.title}</h3>
             <p className="task-desc text-xs text-slate-500 mb-3">{task.desc}</p>
@@ -138,7 +143,7 @@ const TaskCard = ({ task, openTaskModal }) => {
     );
 };
 
-const Column = ({ id, title, tasks, openTaskModal }) => {
+const Column = ({ id, title, tasks, openTaskModal, isAuthorized }) => {
     const { setNodeRef } = useDroppable({ id });
     return (
         <div ref={setNodeRef} className="flex-1 bg-slate-100/70 rounded-xl p-4 min-w-[300px] border border-slate-200">
@@ -148,7 +153,7 @@ const Column = ({ id, title, tasks, openTaskModal }) => {
             </h2>
             <SortableContext id={id} items={tasks.map(t => t.id)}>
                 <div className="column-drop-zone flex flex-col gap-3 min-h-[150px]">
-                    {tasks.map(task => <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} />)}
+                    {tasks.map(task => <TaskCard key={task.id} task={task} openTaskModal={openTaskModal} isAuthorized={isAuthorized} />)}
                 </div>
             </SortableContext>
         </div>
@@ -161,12 +166,28 @@ const KanbanBoard = () => {
         return savedTasks ? JSON.parse(savedTasks) : initialTasks;
     });
     const [modal, setModal] = useState({ isOpen: false, taskId: null });
+    const [isAuthorized, setIsAuthorized] = useState(() => {
+        return localStorage.getItem('isAuthorized') === 'true';
+    });
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+    const handleLogin = () => {
+        setIsAuthorized(true);
+        localStorage.setItem('isAuthorized', 'true');
+        setIsLoginModalOpen(false);
+    };
+
+    const handleLogout = () => {
+        setIsAuthorized(false);
+        localStorage.removeItem('isAuthorized');
+    };
     
     useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)); }, [tasks]);
 
     const sensors = useSensors(useSensor(PointerSensor));
 
     function handleDragEnd(event) {
+        if (!isAuthorized) return;
         const { active, over } = event;
         if (!over) return;
         
@@ -245,25 +266,39 @@ const KanbanBoard = () => {
                         <h1 className="text-3xl font-bold mb-2 tracking-tight">Канбан-доска проекта</h1>
                         <p className="text-slate-500 text-sm md:text-base">Разработка веб-приложения «Что надеть?» (Next.js, Tailwind, OpenWeatherMap)</p>
                     </div>
-                    <button onClick={() => openTaskModal()} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                        Добавить задачу
-                    </button>
+                    <div className="flex gap-3">
+                        {!isAuthorized ? (
+                            <button onClick={() => setIsLoginModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                Войти
+                            </button>
+                        ) : (
+                            <>
+                                <button onClick={handleLogout} className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                    Выйти
+                                </button>
+                                <button onClick={() => openTaskModal()} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                    Добавить задачу
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
                 <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                     <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-8 items-start">
                         {columns.map(column => (
-                            <Column key={column.id} id={column.id} title={column.title} tasks={tasks.filter(t => t.status === column.id)} openTaskModal={openTaskModal} />
+                            <Column key={column.id} id={column.id} title={column.title} tasks={tasks.filter(t => t.status === column.id)} openTaskModal={openTaskModal} isAuthorized={isAuthorized} />
                         ))}
                     </div>
                 </DndContext>
             </div>
-            {modal.isOpen && <TaskModal modal={modal} closeModal={closeModal} saveTask={saveTask} deleteTask={deleteTask} getTaskById={getTaskById} />}
+            {modal.isOpen && <TaskModal key={modal.taskId || 'new'} modal={modal} closeModal={closeModal} saveTask={saveTask} deleteTask={deleteTask} getTaskById={getTaskById} isAuthorized={isAuthorized} />}
+            <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleLogin} />
         </div>
     );
 };
 
-const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => {
+const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById, isAuthorized }) => {
     const taskToEdit = modal.taskId ? getTaskById(modal.taskId) : null;
     const isEdit = !!taskToEdit;
 
@@ -274,16 +309,6 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
         assignees: taskToEdit?.assignees || [],
     });
 
-    // Effect to reset form when a new task is opened for editing
-    useEffect(() => {
-        const task = modal.taskId ? getTaskById(modal.taskId) : null;
-        setFormData({
-            title: task?.title || '',
-            desc: task?.desc || '',
-            tag: task ? `${task.tag}|${task.color}` : 'Инфраструктура|blue',
-            assignees: task?.assignees || [],
-        });
-    }, [modal.taskId, getTaskById]);
 
 
     const handleChange = (e) => {
@@ -353,10 +378,10 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
                         </div>
                     </div>
                     <div className="mt-8 flex justify-between items-center">
-                        {isEdit && <button type="button" onClick={deleteTask} className="text-sm text-red-600 hover:text-red-700 font-medium">Удалить</button>}
+                        {isEdit && isAuthorized && <button type="button" onClick={deleteTask} className="text-sm text-red-600 hover:text-red-700 font-medium">Удалить</button>}
                         <div className="flex gap-3 ml-auto">
                             <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">Отмена</button>
-                            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Сохранить</button>
+                            {isAuthorized && <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Сохранить</button>}
                         </div>
                     </div>
                 </form>
@@ -366,3 +391,53 @@ const TaskModal = ({ modal, closeModal, saveTask, deleteTask, getTaskById }) => 
 };
 
 export default KanbanBoard;
+
+const LoginModal = ({ isOpen, onClose, onLogin }) => {
+    const [login, setLogin] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (login === 'admin' && password === 'qxc333') {
+            onLogin();
+            setLogin('');
+            setPassword('');
+            setError('');
+        } else {
+            setError('Неверный логин или пароль');
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 border border-slate-200 m-4 transform scale-100 transition-transform">
+                <form onSubmit={handleSubmit}>
+                    <div className="flex justify-between items-center mb-5">
+                        <h3 className="text-lg font-bold">Авторизация</h3>
+                        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Логин</label>
+                            <input type="text" value={login} onChange={(e) => setLogin(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" placeholder="admin" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Пароль</label>
+                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" placeholder="••••••••" />
+                        </div>
+                        {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+                    </div>
+                    <div className="mt-8 flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">Отмена</button>
+                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Войти</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
